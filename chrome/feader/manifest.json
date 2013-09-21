@@ -1,0 +1,17 @@
+{
+  "name": "Feader",
+  "version": "1.0",
+  "description": "Social RSS client",
+  "background": 
+  {"page":"background.html"
+  },
+  "browser_action": {
+    "default_popup": "popup.html" //,
+    // "default_icon":"icon.png"
+  },
+  "manifest_version":2,
+  "permissions": [
+    "tabs",
+    "http://*.facebook.com/*"
+  ]
+}
