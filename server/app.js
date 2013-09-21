@@ -10,11 +10,13 @@ db.once('open', function callback () {
 })
 
 app = express().http().io()
-// this is the database schema
+// this is the database mongoose.schema
 usersSchema = mongoose.Schema({
     fbId: String,
     email: { type : String , lowercase : true},
-    name : String
+    name : String,
+    feedLists: [{type: mongoose.Schema.ObjectId, ref: 'FeedList'}],
+    suggestedArticles: [{type: mongoose.Schema.ObjectId, ref: 'SuggestedArticles'}]
 })
 User = mongoose.model('User',usersSchema)
 
@@ -23,9 +25,46 @@ articlesSchema = mongoose.Schema({
 	title: String,
 	author: String,
 	description: String,
-	id: String
+	id: String,
+	link: String,
+	submitted: Date
 })
 Article = mongoose.model('Article', articlesSchema)
+
+commentsSchema = mongoose.Schema({
+	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
+	submitted: Date,
+	body: String,
+	article: {type: mongoose.Schema.ObjectId, ref: 'Article'}
+})
+Comment = mongoose.model('Comment', commentsSchema)
+
+upvoteSchema = mongoose.Schema({
+	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
+	article: {type: mongoose.Schema.ObjectId, ref: 'Article'}
+})
+Upvote = mongoose.model('Upvote', upvoteSchema)
+
+suggestedArticlesSchema = mongoose.Schema({
+	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
+	articles: [{type: mongoose.Schema.ObjectId, ref: 'Article'}]
+})
+SuggestedArticles = mongoose.model('SuggestedArticles', suggestedArticlesSchema)
+
+feedSchema = mongoose.Schema({
+	id: String,
+	name: String,
+	link: String,
+	articles: [{type: mongoose.Schema.ObjectId, ref: 'Article'}]
+})
+Feed = mongoose.model('Feed', feedSchema)
+
+feedListSchema = mongoose.Schema({
+	id: String,
+	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
+	feeds: [{type: mongoose.Schema.ObjectId, ref: 'Feed'}]
+})
+FeedList = mongoose.model('FeedList', feedListSchema)
 
 tasksSchema = mongoose.Schema({
 	action: String,
