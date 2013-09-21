@@ -10,3 +10,16 @@ if (localStorage.accessToken) {
         console.log(user);
     }
 }
+
+window.addEventListener('storage', storageEventHandler, false);
+
+function storageEventHandler(e){
+	alert("listener");
+	alert(e);
+}
+
+chrome.tabs.getCurrent(function callback);
+
+function callback(Tab tab){
+	alert("tab");
+}
