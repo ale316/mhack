@@ -1,5 +1,6 @@
 express = require('express.io')
 mongoose = require('mongoose')
+crypto = require('crypto')
 mongoose.connect('mongodb://localhost/tasks')
 
 db = mongoose.connection
@@ -15,8 +16,8 @@ usersSchema = mongoose.Schema({
     fbId: String,
     email: { type : String , lowercase : true},
     name : String,
-    feedLists: [{type: mongoose.Schema.ObjectId, ref: 'FeedList'}],
-    suggestedArticles: [{type: mongoose.Schema.ObjectId, ref: 'SuggestedArticles'}]
+    feedLists: { type: [{type: mongoose.Schema.ObjectId, ref: 'FeedList'}], default: null },
+    suggestedArticles: { type: [{type: mongoose.Schema.ObjectId, ref: 'SuggestedArticles'}] , default: null }
 })
 User = mongoose.model('User',usersSchema)
 
@@ -25,9 +26,10 @@ articlesSchema = mongoose.Schema({
 	title: String,
 	author: String,
 	description: String,
-	id: String,
+	_id: String,
 	link: String,
-	submitted: Date
+	submitted: Date,
+	source: String
 })
 Article = mongoose.model('Article', articlesSchema)
 
@@ -35,13 +37,15 @@ commentsSchema = mongoose.Schema({
 	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
 	submitted: Date,
 	body: String,
-	article: {type: mongoose.Schema.ObjectId, ref: 'Article'}
+	article: {type: mongoose.Schema.ObjectId, ref: 'Article'},
+	feedList: {type: mongoose.Schema.ObjectId, ref: 'FeedList'}
 })
 Comment = mongoose.model('Comment', commentsSchema)
 
 upvoteSchema = mongoose.Schema({
 	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
-	article: {type: mongoose.Schema.ObjectId, ref: 'Article'}
+	article: {type: mongoose.Schema.ObjectId, ref: 'Article'},
+	feedList: {type: mongoose.Schema.ObjectId, ref: 'FeedList'}
 })
 Upvote = mongoose.model('Upvote', upvoteSchema)
 
@@ -52,7 +56,7 @@ suggestedArticlesSchema = mongoose.Schema({
 SuggestedArticles = mongoose.model('SuggestedArticles', suggestedArticlesSchema)
 
 feedSchema = mongoose.Schema({
-	id: String,
+	_id: String,
 	name: String,
 	link: String,
 	articles: [{type: mongoose.Schema.ObjectId, ref: 'Article'}]
@@ -60,7 +64,7 @@ feedSchema = mongoose.Schema({
 Feed = mongoose.model('Feed', feedSchema)
 
 feedListSchema = mongoose.Schema({
-	id: String,
+	_id: String,
 	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
 	feeds: [{type: mongoose.Schema.ObjectId, ref: 'Feed'}]
 })
@@ -75,22 +79,106 @@ tasksSchema = mongoose.Schema({
 
 Task = mongoose.model('Task', tasksSchema)
 
-// Broadcast all draw clicks.
-app.io.route('task_submitted', function(res) {
-	console.log(res.data)
-	task = res.data;
-	db_task = new Task({ 
-		action: task.action,
-		due: task.due,
-		submitted: new Date(),
-		user: task.user
+
+/************ ROUTING *************/
+function emitError(req, err) {
+	req.io.emit('error', {
+		description: err.name+': '+err.message
 	})
-	db_task.save(function (err, task) {
-	  if (err) console.log('error: couldn\'t save "'+task.action+'"')// TODO handle the error
-	  else {
-	  	res.io.emit('task_created', task)	
-	  }
+}
+
+app.io.route('user_log', function(req) {
+	// we could abstract this, but is it worth the time?
+	console.log(req.data) // logging the incoming data
+	userinfo = req.data
+	Article.findOne({ fbId: userinfo.fbId }, function(err, user) {
+		if(err) emitError(req, err)
+		else if(!user) {
+			// create the model instance
+			user = new User({
+				fbId: userinfo.fbId,
+				email: userinfo.email,
+				name: userinfo.name
+			})
+			// try inserting it in the database
+			user.save(function(err,user) {
+				if(err) {
+					emitError(req, err)
+					return
+				}
+			})
+		}
+		req.io.emit('user_logged', user)
+	})	
+})
+
+app.io.route('article_add', function(req) {
+	// we could abstract this, but is it worth the time?
+	console.log(req.data) // logging the incoming data
+	articleinfo = req.data
+	articleinfo.id = crypto.createHash('md5').update(articleinfo.title+articleinfo.source).digest("hex")
+	Article.findOne({ fbId: article.id }, function(err, article) {
+		if(err) emitError(req, err)
+		else if(!user) {
+			// create the model instance
+			article = new Article({
+				id: articleinfo.id,
+				title: articleinfo.title,
+				author: articleinfo.author,
+				description: articleinfo.description,
+				link: articleinfo.link,
+				submitted: articleinfo.submitted
+			})
+			// try inserting it in the database
+			article.save(function(err,article) {
+				if(err) {
+					emitError(req, err)
+					return
+				}
+			})
+		}
+		req.io.emit('article_added', article)
+	})	
+})
+
+app.io.route('comment_add', function(req) {
+	// we could abstract this, but is it worth the time?
+	console.log(req.data) // logging the incoming data
+	commentinfo = req.data
+	comment = new Comment({
+		user: commentinfo.user_id,
+		submitted: commentinfo.submitted,
+		body: commentinfo.body,
+		article: commentinfo.article_id,
+		feedList: commentinfo.feedList_id
 	})
+	// try inserting it in the database
+	comment.save(function(err,user) {
+		if(err) {
+			emitError(req, err)
+			return
+		}
+	})
+	req.io.emit('comment_added', comment)
+})
+
+app.io.route('upvote_add', function(req) {
+	// we could abstract this, but is it worth the time?
+	console.log(req.data) // logging the incoming data
+	upvoteinfo = req.data
+	upvote = new Upvote({
+		user: upvoteinfo.user_id,
+		article: upvoteinfo.article_id,
+		feedList: upvoteinfo.feedList_id
+	})
+	// try inserting it in the database
+	upvote.save(function(err,user) {
+		if(err) {
+			emitError(req, err)
+			return
+		}
+	})
+	req.io.emit('upvote_added', comment)
 })
 
 app.io.route('load_tasks_by_user', function(res) {
