@@ -50,10 +50,11 @@ upvoteSchema = mongoose.Schema({
 Upvote = mongoose.model('Upvote', upvoteSchema)
 
 suggestedArticlesSchema = mongoose.Schema({
-	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
-	articles: [{type: mongoose.Schema.ObjectId, ref: 'Article'}]
+	receiver: {type: mongoose.Schema.ObjectId, ref: 'User'},
+	sender: {type: mongoose.Schema.ObjectId, ref: 'User'},
+	article: {type: mongoose.Schema.ObjectId, ref: 'Article'}
 })
-SuggestedArticles = mongoose.model('SuggestedArticles', suggestedArticlesSchema)
+SuggestedArticles = mongoose.model('SuggestedArticle', suggestedArticlesSchema)
 
 feedSchema = mongoose.Schema({
 	_id: String,
@@ -172,13 +173,30 @@ app.io.route('upvote_add', function(req) {
 		feedList: upvoteinfo.feedList_id
 	})
 	// try inserting it in the database
-	upvote.save(function(err,user) {
+	upvote.save(function(err,upvote) {
 		if(err) {
 			emitError(req, err)
 			return
 		}
 	})
 	req.io.emit('upvote_added', comment)
+})
+
+app.io.route('article_suggest', function(req) {
+	console.log(req.data)
+	suggested_articleinfo = req.data
+	suggested_article = new SuggestedArticle {
+		receiver: suggested_articleinfo.receiver_id,
+		sender: suggested_article.sender_id,
+		article: suggested_articleinfo.article_id
+	}
+	suggested_article.save(function(err,suggested_article) {
+		if(err) {
+			emitError(req, err)
+			return
+		}
+	})
+	req.io.emit('article_suggested', suggested_article)
 })
 
 app.io.route('load_tasks_by_user', function(res) {
