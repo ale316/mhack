@@ -1,5 +1,4 @@
 express = require('express.io')
-//routes = require('./routes')
 mongoose = require('mongoose') 
 mongoose.connect('mongodb://localhost/tasks')
 
@@ -13,6 +12,10 @@ db.once('open', function callback () {
 app = express().http().io()
 
 // this is the database schema
+userSchema = mongoose.Schema({
+
+})
+
 tasksSchema = mongoose.Schema({
 	action: String,
 	due: String,
@@ -21,8 +24,6 @@ tasksSchema = mongoose.Schema({
 })
 
 Task = mongoose.model('Task', tasksSchema)
-
-
 
 // Broadcast all draw clicks.
 app.io.route('task_submitted', function(res) {
