@@ -1,5 +1,5 @@
 express = require('express.io')
-mongoose = require('mongoose') 
+mongoose = require('mongoose')
 mongoose.connect('mongodb://localhost/tasks')
 
 db = mongoose.connection
@@ -10,11 +10,22 @@ db.once('open', function callback () {
 })
 
 app = express().http().io()
-
 // this is the database schema
-userSchema = mongoose.Schema({
-
+usersSchema = mongoose.Schema({
+    fbId: String,
+    email: { type : String , lowercase : true},
+    name : String
 })
+User = mongoose.model('User',usersSchema)
+
+// title, author, description
+articlesSchema = mongoose.Schema({
+	title: String,
+	author: String,
+	description: String,
+	id: String
+})
+Article = mongoose.model('Article', articlesSchema)
 
 tasksSchema = mongoose.Schema({
 	action: String,
