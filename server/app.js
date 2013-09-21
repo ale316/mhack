@@ -1,5 +1,5 @@
 express = require('express.io')
-routes = require('./routes')
+//routes = require('./routes')
 mongoose = require('mongoose') 
 mongoose.connect('mongodb://localhost/tasks')
 
@@ -11,10 +11,6 @@ db.once('open', function callback () {
 })
 
 app = express().http().io()
-app.configure(function() {
-	app.set('view engine', 'jade')
-	app.use(express.static(__dirname+'/public'))
-})
 
 // this is the database schema
 tasksSchema = mongoose.Schema({
