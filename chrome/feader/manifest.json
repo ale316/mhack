@@ -11,11 +11,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.facebook.com/connect/*"],
+      "matches": ["https://www.facebook.com/connect/login_success.html*"],
       // "css": ["mystyles.css"],
-      "js": ["fb_success.js"]
+      "js": [ "jquery.js", "fb_success.js"]
     }
   ],
+  "web_accessible_resources": ["https://graph.facebook.com/*"],
   "manifest_version":2,
   "permissions": [
     "tabs",
