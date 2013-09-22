@@ -38,8 +38,8 @@ Article = mongoose.model('Article', articlesSchema)
 
 // article list functions
 function articleMerge(a,b){
-	a = a.sort;
-	b = b.sort;
+	a = a.sort(articleCompare);
+	b = b.sort(articleCompare);
 	var c = []
 	while(a.length > 0 && b.length > 0){
 		// remove elements from a,b building c 
@@ -84,7 +84,7 @@ function articleCompare(a,b) {
   return 0;
 }
 
-objs.sort(articleCompare);
+// objs.sort(articleCompare);
 
 // comments
 commentsSchema = mongoose.Schema({
