@@ -17,7 +17,9 @@ usersSchema = mongoose.Schema({
     email: { type : String , lowercase : true},
     name : String,
     feedLists: { type: [{type: mongoose.Schema.ObjectId, ref: 'FeedList'}], default: null },
-    suggestedArticles: { type: [{type: mongoose.Schema.ObjectId, ref: 'SuggestedArticles'}] , default: null }
+    suggestedArticles: { type: [{type: mongoose.Schema.ObjectId, ref: 'SuggestedArticles'}] , default: null },
+    friends : [{type: mongoose.Schema.ObjectId}],
+    pic : String
 })
 User = mongoose.model('User',usersSchema)
 
@@ -89,18 +91,24 @@ function emitError(req, err) {
 }
 
 app.io.route('user_log', function(req) {
-	// we could abstract this, but is it worth the time?
-	console.log(req.data) // logging the incoming data
+	// we could abstract this, but is it worth the time? 
+	// ^^nope
+	console.log(req) // logging the incoming data
 	userinfo = req.data
-	User.findOne({ fbId: userinfo.fbId }, function(err, user) {
-		if(err) emitError(req, err)
+	var data = req
+	User.findOne({ fbId: data.id }, function(err, user) {
+		if(err) emitError(req, err);
 		else if(!user) {
 			// create the model instance
 			user = new User({
-				fbId: userinfo.fbId,
-				email: userinfo.email,
-				name: userinfo.name
+				fbId: data.id,
+				// email: userinfo.email,
+				name: data.name,
+				pic: data.picture
 			})
+
+			addFriends(user,data.friends);
+
 			// try inserting it in the database
 			user.save(function(err,user) {
 				if(err) {
@@ -109,9 +117,20 @@ app.io.route('user_log', function(req) {
 				}
 			})
 		}
+		else if (user){
+
+			addFriends(user,data.friends);
+		}
 		req.io.emit('user_logged', user)
 	})	
 })
+
+function addFriends(user, friends){
+	User.find({'fbId' : { $in: friends}}).all(function(u){
+				user.friends.push(u.fbId)
+				u.friends.push(user.fbId)
+			})
+}
 
 app.io.route('article_add', function(req) {
 	// we could abstract this, but is it worth the time?
@@ -271,6 +290,32 @@ app.io.route('feed_list_add', function(req) {
 	})
 	req.io.emit('feed_added', feed)
 })
+
+
+/*-- GETTERS --*/
+// takes the user_id as input
+app.io.route('get_feed_lists_by_user', function(req) {
+	user_id = req.data
+	FeedList.find({ 'user': user_id }, function(err, feed_lists) {
+		if(err) emitError(req, err)
+		else {
+			req.io.emit('feed_lists_by_user', feed_lists)
+		}
+	})
+
+})
+
+app.io.route('get_articles_by_feed_list', function(req) {
+	user_id = req.data
+	FeedList.find({ 'user': user_id }, function(err, feed_lists) {
+		if(err) emitError(req, err)
+		else {
+			req.io.emit('feed_lists_by_user', feed_lists)
+		}
+	})
+
+})
+
 
 app.io.route('load_tasks_by_user', function(res) {
 	var user = res.data
