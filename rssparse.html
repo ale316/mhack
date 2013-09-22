@@ -1,0 +1,40 @@
+<script src="http://code.jquery.com/jquery-1.10.1.min.js" type='text/javascript'></script>
+<script type='text/javascript'>
+var io = require('socket.io');
+
+var feedURL = "http://cyber.law.harvard.edu/rss/examples/rss2sample.xml";
+
+function parseRSS(url) {
+  $.ajax({
+    url: document.location.protocol + '//ajax.googleapis.com/ajax/services/feed/load?v=1.0&num=10&callback=?&q=' + encodeURIComponent(url),
+    dataType: 'json',
+    success: function(data) {
+    	//Create JSON corresp to schema elements
+      	var d = data.responseData.feed;
+      	var articles = [];
+      	for (var i = d.entries.length - 1; i >= 0; i--) {
+      		articles.push({
+      			title:d.entries[i].title,
+	      		author:d.entries[i].author,
+	      		description:d.entries[i].content,
+	      		link:d.entries[i].link,
+	      		submitted:d.entries[i].publishedDate,
+	      		source:d.link,
+        	});
+      	};
+      	var feed = JSON.stringify({
+      		name:d.title,
+      		link:d.feedUrl,
+      		articles:articles
+      	});
+      	//Send to server
+      	var socket = new io.Socket(null,{port:7076});
+  		socket.connect();
+  		socket.on("connect", function () {
+  			socket.emit('feed',feed);
+  		});
+    	}
+  });
+};
+parseRSS(feedURL)
+</script>
