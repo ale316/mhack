@@ -272,6 +272,32 @@ app.io.route('feed_list_add', function(req) {
 	req.io.emit('feed_added', feed)
 })
 
+
+/*-- GETTERS --*/
+// takes the user_id as input
+app.io.route('get_feed_lists_by_user', function(req) {
+	user_id = req.data
+	FeedList.find({ 'user': user_id }, function(err, feed_lists) {
+		if(err) emitError(req, err)
+		else {
+			req.io.emit('feed_lists_by_user', feed_lists)
+		}
+	})
+
+})
+
+app.io.route('get_articles_by_feed_list', function(req) {
+	user_id = req.data
+	FeedList.find({ 'user': user_id }, function(err, feed_lists) {
+		if(err) emitError(req, err)
+		else {
+			req.io.emit('feed_lists_by_user', feed_lists)
+		}
+	})
+
+})
+
+
 app.io.route('load_tasks_by_user', function(res) {
 	var user = res.data
 	Task.find({ 'user': user }).sort({ due: -1 }).execFind(function(err, tasks) {
