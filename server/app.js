@@ -118,12 +118,12 @@ app.io.route('article_add', function(req) {
 	console.log(req.data) // logging the incoming data
 	articleinfo = req.data
 	articleinfo.id = crypto.createHash('md5').update(articleinfo.title+articleinfo.source).digest("hex")
-	Article.findOne({ fbId: article.id }, function(err, article) {
+	Article.findOne({ _id: articleinfo.id }, function(err, article) {
 		if(err) emitError(req, err)
-		else if(!user) {
+		else if(!article) {
 			// create the model instance
 			article = new Article({
-				id: articleinfo.id,
+				_id: articleinfo.id,
 				title: articleinfo.title,
 				author: articleinfo.author,
 				description: articleinfo.description,
@@ -185,11 +185,11 @@ app.io.route('upvote_add', function(req) {
 app.io.route('article_suggest', function(req) {
 	console.log(req.data)
 	suggested_articleinfo = req.data
-	suggested_article = new SuggestedArticle {
+	suggested_article = new SuggestedArticle({
 		receiver: suggested_articleinfo.receiver_id,
 		sender: suggested_article.sender_id,
 		article: suggested_articleinfo.article_id
-	}
+	})
 	suggested_article.save(function(err,suggested_article) {
 		if(err) {
 			emitError(req, err)
@@ -197,6 +197,79 @@ app.io.route('article_suggest', function(req) {
 		}
 	})
 	req.io.emit('article_suggested', suggested_article)
+})
+
+function createArticle(articleinfo) {
+	articleinfo.id = crypto.createHash('md5').update(articleinfo.title+articleinfo.source).digest("hex")
+	Article.findOne({ _id: articleinfo.id }, function(err, article) {
+		if(err) emitError(req, err)
+		else if(!article) {
+			// create the model instance
+			article = new Article({
+				_id: articleinfo.id,
+				title: articleinfo.title,
+				author: articleinfo.author,
+				description: articleinfo.description,
+				link: articleinfo.link,
+				submitted: articleinfo.submitted
+			})
+			// try inserting it in the database
+			article.save(function(err,article) {
+				if(err) {
+					emitError(req, err)
+					return
+				}
+			})
+		}
+		return article
+	})
+}
+
+function createFeed(feedinfo) {
+	articles = feedinfo.articles
+	articles_ids = []
+	for (var i = 0; i < articles.length; i++) {
+		article_ids.push(createArticle(articles[i])._id)
+	}
+	feedinfo.id = crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex")
+	Feed.findOne({ _id: feedinfo.id }, function(err, feed) {
+		if(err) emitError(req, err)
+		else if(!feed) {
+			feed = new Feed({
+				_id: crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex"),
+				name: feedinfo.name,
+				link: feedinfo.link,
+				articles: article_ids
+			})
+			feed.save(function(err,feed) {
+				if(err) {
+					emitError(req, err)
+					return
+				}
+			})
+		}
+		return feed
+	})
+}
+
+app.io.route('feed_add', function(req) {
+	console.log(req.data)
+	feedinfo = req.data
+	feed = createFeed(feedinfo)
+	req.io.emit('feed_added', feed)
+})
+
+app.io.route('feed_list_add', function(req) {
+	console.log(req.data)
+	feed_listinfo = req.data
+	feed_listinfo.id = crypto.createHash('md5').update(feed_listinfo.name+feed_listinfo.user).digest("hex")
+	FeedList.findOne({ _id: feed_listinfo.id }, function(err, feed_list) {
+		if(err) emitError(req, err)
+		else if(!feed_list) {
+			feed_list = createFeed(feed_listinfo)
+		}
+	})
+	req.io.emit('feed_added', feed)
 })
 
 app.io.route('load_tasks_by_user', function(res) {
