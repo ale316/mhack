@@ -92,7 +92,7 @@ app.io.route('user_log', function(req) {
 	// we could abstract this, but is it worth the time?
 	console.log(req.data) // logging the incoming data
 	userinfo = req.data
-	Article.findOne({ fbId: userinfo.fbId }, function(err, user) {
+	User.findOne({ fbId: userinfo.fbId }, function(err, user) {
 		if(err) emitError(req, err)
 		else if(!user) {
 			// create the model instance
