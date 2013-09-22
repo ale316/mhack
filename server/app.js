@@ -13,7 +13,7 @@ db.once('open', function callback () {
 app = express().http().io()
 // this is the database mongoose.schema
 usersSchema = mongoose.Schema({
-    fbId: String,
+    _id: String,
     email: { type : String , lowercase : true},
     name : String,
     feedLists: { type: [{type: mongoose.Schema.ObjectId, ref: 'FeedList'}], default: null },
@@ -245,8 +245,10 @@ function createArticle(articleinfo) {
 }
 
 function createFeed(feedinfo) {
-	articles = feedinfo.articles
-	articles_ids = []
+	var articles = feedinfo.articles;
+	var msg = articles ? articles : "no articles";
+	console.log(msg);
+	var articles_ids = [];
 	for (var i = 0; i < articles.length; i++) {
 		article_ids.push(createArticle(articles[i])._id)
 	}
@@ -283,12 +285,15 @@ app.io.route('feed_list_add', function(req) {
 	feed_listinfo = req.data
 	feed_listinfo.id = crypto.createHash('md5').update(feed_listinfo.name+feed_listinfo.user).digest("hex")
 	FeedList.findOne({ _id: feed_listinfo.id }, function(err, feed_list) {
-		if(err) emitError(req, err)
-		else if(!feed_list) {
+		if(err) {
+			emitError(req, err)
+			return
+		} else if(!feed_list) {
 			feed_list = createFeed(feed_listinfo)
 		}
+		req.io.emit('feed_added', feed_list)
 	})
-	req.io.emit('feed_added', feed)
+	
 })
 
 
@@ -306,8 +311,11 @@ app.io.route('get_feed_lists_by_user', function(req) {
 })
 
 app.io.route('get_articles_by_feed_list', function(req) {
-	user_id = req.data
-	FeedList.find({ 'user': user_id }, function(err, feed_lists) {
+	feed_list_id = req.data
+	FeedList.findOne({ _id: feed_list_id }, function(req) {
+
+	})
+	Article.find({ 'user': user_id }, function(err, feed_lists) {
 		if(err) emitError(req, err)
 		else {
 			req.io.emit('feed_lists_by_user', feed_lists)
