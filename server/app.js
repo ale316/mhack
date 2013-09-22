@@ -31,10 +31,62 @@ articlesSchema = mongoose.Schema({
 	_id: String,
 	link: String,
 	submitted: Date,
-	source: String
+	source: String,
+	rank: Number 
 })
 Article = mongoose.model('Article', articlesSchema)
 
+// article list functions
+function articleMerge(a,b){
+	a = a.sort;
+	b = b.sort;
+	var c = []
+	while(a.length > 0 && b.length > 0){
+		// remove elements from a,b building c 
+		// in effect a insert sort merge
+		while(a[0].rank > b[0].rank){
+			if(a[0]._id === b[0]._id){
+				// a[0] == b[0], remove duplicates
+				a = a.shift();
+			}
+			c.push(b[0]);
+			b = b.shift();
+		} while (a[0].rank < b[0].rank){
+			if(a[0]._id === b[0]._id){
+				// a[0] == b[0], remove duplicates
+				b = b.shift();
+			}
+			c.push(a[0]);
+			a = a.shift();
+		}
+		if (a[0].rank === b[0].rank){
+			if(a[0]._id === b[0]._id){
+				// a[0] == b[0], remove duplicates
+				c.push(a[0]);
+				a = a.shift();
+				b = b.shift();
+			} else {
+				c.push(a[0]);
+				c.push(b[0]);
+				a = a.shift();
+				b = b.shift();
+			}
+		}
+	} // master loop
+	return c;
+}
+
+function articleCompare(a,b) {
+  if (a.rank < b.rank)
+     return -1;
+  if (a.rank > b.rank)
+    return 1;
+  return 0;
+}
+
+objs.sort(articleCompare);
+
+// comments
 commentsSchema = mongoose.Schema({
 	user: {type: mongoose.Schema.ObjectId, ref: 'User'},
 	submitted: Date,
