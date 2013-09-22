@@ -304,13 +304,11 @@ function createArticle(articleinfo, callback) {
 				}
 			})
 		}
-		console.log("making article")
 		callback(null,article)
 	})
-	console.log('jdbsdb')
 }
 
-function createFeed(feedinfo) {
+function createFeed(feedinfo, callback) {
 	feedinfo.id = crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex")
 	Feed.findOne({ _id: feedinfo.id }, function(err, feed) {
 		if(err) emitError(req, err)
@@ -328,24 +326,15 @@ function createFeed(feedinfo) {
 				}
 			})
 		}
-		return feed
+		callback(null, feed);
 	})
 }
 
-function createArticles(feedinfo) {
+function createArticles(feedinfo, callback) {
 	articles = feedinfo.articles
 	msg = articles ? articles : "no articles"
 	articles_ids = []
-	/*for (i = 0; i < articles.length; i++) {
-		new_article = createArticle(articles[i])
-		articles_ids.push(new_article._id)
-	}*/
-	async.map(articles,createArticle, function (err,  articles) {
-		console.log('done!')		
-        
-
-	})
-	
+	async.map(articles, createArticle, callback)
 }
 
 app.io.route('feed_add', function(req) {
@@ -355,39 +344,79 @@ app.io.route('feed_add', function(req) {
 	req.io.emit('feed_added', feed)
 })
 
+function getIds (arr) {
+	return _.map(arr, function (v) { return v._id; })
+}
+
+
+function getOrCreateFeedList (feed_listinfo, callback) {
+
+	FeedList.findOne({ _id: feed_listinfo.id }, function(err, feed_list) {
+		if(err) return callback(err)
+
+		if(!feed_list) {
+			async.map(feed_listinfo.feeds, createFeed, function (err, feeds) {
+
+				feed_ids = getIds(feeds)
+				feed_list = new FeedList({
+					_id: feed_listinfo.id,
+					name: feed_listinfo.name,
+					user: feed_listinfo.user,
+					feeds: feed_ids
+				})
+
+				feed_list.save(function(err,feed_list) {
+					if (err) callback(err);
+					callback(null, feed_list);
+				})
+
+			});
+
+		} else {
+	
+			feed_ids = getIds(feed_listinfo.feeds)
+			feed_list.feeds = _.union(feed_list.feeds, feed_ids)
+
+			console.log(feed_ids)
+			callback(null, feed_list);
+	
+		}
+	})
+
+}
+
+var feedList = { user:"523e57846313f76825000001", name:"things", 
+feeds: [{'_id':192847,'name':'Tech Posts','link':'http://www.google.ca',
+'articles':[{'title':'iPhone 9 confirmed by hipster journalist','author':'Davy Jones','description':'Today a hip New Yorker unveiled that the new iPhone 9 is in the works...','_id':299182,'link':'','submitted':123123123,'source':'http://www.google.ca'},{'title':'Steve Jobs Revived from the dead','author':'Bob Barker','description':'Steve Jobs was figuratively raised from his grave when another biography was released last weekend...','_id':837745,'link':'','submitted':883837726,'source':'http://www.google.ca'}]},{'_id':926582,'name':'Sci Posts','link':'http://www.google.ca','articles':[{'title':'New particle breaks every known law in Physics','author':'Mary-Kate Olsen','description':'A very desperate journalist misreads a physics paper once again this week, as...','_id':871123,'link':'','submitted':000000000,'source':'http://www.google.ca'},{'title':'\"Wrecking Ball\" Single Inspires Academic Community','author':'Whoopsie Goldberg','description':'The number of academic papers are soaring this week as Miley\'s newest single hits the shelves...','_id':837745,'link':'','submitted':862846823,'source':"http://www.google.ca"}]}]}
+
+
 app.io.route('feed_list_add', function(req) {
 	console.log(req.data)
 	feed_listinfo = req.data
 	feed_listinfo.id = crypto.createHash('md5').update(feed_listinfo.name+feed_listinfo.user).digest("hex")
-	FeedList.findOne({ _id: feed_listinfo.id }, function(err, feed_list) {
-		if(err) {
-			emitError(req, err)
-			return
-		} else if(!feed_list) {
-			feed_ids = []
-			for (var i = 0; i < feed_listinfo.feeds.length; i++) {
-				feed_ids.push(createFeed(feed_listinfo.feeds[i])._id)
-			}
-			feed_list = new FeedList({
-				_id: feed_listinfo.id,
-				name: feed_listinfo.name,
-				user: feed_listinfo.user,
-				feeds: feed_ids
-			}) //createFeed(feed_listinfo)
-			feed_list.save(function(err,feed_list) {
-				if(err) {
+
+	async.waterfall([
+		function articles (callback) {
+			async.map(feed_listinfo.feeds, createArticles, callback);
+		},
+		function feeds (articles, callback) {
+			async.map(articles, function (article, articleDone) {
+				articleDone(null, article._id);
+			}, callback);
+		},
+		function feedList (feeds, callback) {
+			getOrCreateFeedList(feed_listinfo, function (err, feed_list) {
+				if (err) {
 					emitError(req, err)
 					return
 				}
+				console.log(feed_list);
 			})
-		} else {
-			feed_ids = []
-			for (var i = 0; i < feed_listinfo.feeds.length; i++) {
-				feed_ids.push(createFeed(feed_listinfo.feeds[i])._id)
-			}
 
 		}
-		req.io.emit('feed_added', feed_list)
+
+	], function (err, result) {
+		req.io.emit('feed_added', result)
 	})
 	
 })
