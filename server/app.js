@@ -1,150 +1,31 @@
-express = require('express.io')
-mongoose = require('mongoose')
-crypto = require('crypto')
-async = require('async')
-_ = require('underscore')
-mongoose.connect('mongodb://localhost/tasks')
+var express = require('express.io');
+var mongoose = require('mongoose'),
+	models = require('./models/schema.js'),
+	models = require('./models/users.js'),
+	models = require('./models/articles.js');
+var crypto = require('crypto');
+var async = require('async');
+var _ = require('underscore');
 
-db = mongoose.connection
+mongoose.connect('mongodb://localhost/feeder')
 
-db.on('error', console.error.bind(console, 'connection error:'))
+var db = mongoose.connection;
+
+db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function callback () {
-  console.log('success!')
-})
+  console.log('success!');
+});
 
-app = express().http().io()
-// this is the database mongoose.schema
-usersSchema = mongoose.Schema({
-    _id: { type: String, required: true },
-    email: { type : String , lowercase : true},
-    name : String,
-    feedLists: { type: [{type: String, ref: 'FeedList'}], default: null },
-    suggestedArticles: { type: [{type: String, ref: 'SuggestedArticles'}] , default: null },
-    friends : [{type: String}],
-    pic : String
-})
-User = mongoose.model('User',usersSchema)
+app = express().http().io();
 
-// title, author, description
-articlesSchema = mongoose.Schema({
-	title: String,
-	author: String,
-	description: String,
-	_id: { type: String, required: true },
-	link: String,
-	submitted: Date,
-	source: String,
-	rank: Number 
-})
-Article = mongoose.model('Article', articlesSchema)
 
-// article list functions
-function articleMerge(a,b){
-	a = a.sort(articleCompare);
-	b = b.sort(articleCompare);
-	var c = []
-	while(a.length > 0 && b.length > 0){
-		// remove elements from a,b building c 
-		// in effect a insert sort merge
-		while(a[0].rank > b[0].rank){
-			if(a[0]._id === b[0]._id){
-				// a[0] == b[0], remove duplicates
-				a = a.shift();
-			}
-			c.push(b[0]);
-			b = b.shift();
-		} while (a[0].rank < b[0].rank){
-			if(a[0]._id === b[0]._id){
-				// a[0] == b[0], remove duplicates
-				b = b.shift();
-			}
-			c.push(a[0]);
-			a = a.shift();
-		}
-		if (a[0].rank === b[0].rank){
-			if(a[0]._id === b[0]._id){
-				// a[0] == b[0], remove duplicates
-				c.push(a[0]);
-				a = a.shift();
-				b = b.shift();
-			} else {
-				c.push(a[0]);
-				c.push(b[0]);
-				a = a.shift();
-				b = b.shift();
-			}
-		}
-	} // master loop
-	return c;
-}
-
-function articleCompare(a,b) {
-  if (a.rank < b.rank)
-     return -1;
-  if (a.rank > b.rank)
-    return 1;
-  return 0;
-}
-
-// objs.sort(articleCompare);
-
-// comments
-commentsSchema = mongoose.Schema({
-	user: {type: String, ref: 'User'},
-	_id: { type: String, required: true },
-	submitted: Date,
-	body: String,
-	article: {type: String, ref: 'Article'},
-	feedList: {type: String, ref: 'FeedList'}
-})
-Comment = mongoose.model('Comment', commentsSchema)
-
-upvoteSchema = mongoose.Schema({
-	_id: { type: String, required: true },
-	user: {type: String, ref: 'User'},
-	article: {type: String, ref: 'Article'},
-	feedList: {type: String, ref: 'FeedList'}
-})
-Upvote = mongoose.model('Upvote', upvoteSchema)
-
-suggestedArticlesSchema = mongoose.Schema({
-	_id: { type: String, required: true },
-	receiver: {type: String, ref: 'User'},
-	sender: {type: String, ref: 'User'},
-	article: {type: String, ref: 'Article'}
-})
-SuggestedArticles = mongoose.model('SuggestedArticle', suggestedArticlesSchema)
-
-feedSchema = mongoose.Schema({
-	_id: { type: String, required: true },
-	name: String,
-	link: String,
-	articles: [{type: String, ref: 'Article'}]
-})
-Feed = mongoose.model('Feed', feedSchema)
-
-feedListSchema = mongoose.Schema({
-	_id: { type: String, required: true },
-	user: {type: String, ref: 'User'},
-	feeds: [{type: String, ref: 'Feed'}]
-})
-FeedList = mongoose.model('FeedList', feedListSchema)
-
-tasksSchema = mongoose.Schema({
-	action: String,
-	due: String,
-	submitted: Date,
-	user: String
-})
-
-Task = mongoose.model('Task', tasksSchema)
 
 
 /************ ROUTING *************/
 function emitError(req, err) {
 	req.io.emit('error', {
 		description: err.name+': '+err.message
-	})
+	});
 }
 
 app.io.route('user_log', function(req) {
@@ -278,13 +159,34 @@ app.io.route('article_suggest', function(req) {
 	req.io.emit('article_suggested', suggested_article)
 })
 
+
+
+function createFeed(feedinfo, callback) {
+	feedinfo.id = crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex")
+	Feed.findOne({ _id: feedinfo.id }, function(err, feed) {
+		if(err) emitError(req, err)
+		else if(!feed) {
+			feed = new Feed({
+				_id: crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex"),
+				name: feedinfo.name,
+				link: feedinfo.link,
+				articles: feedinfo.article_ids
+			})
+			feed.save(function(err,feed) {
+				if(err) {
+					emitError(req, err)
+					return
+				}
+			})
+		}
+		callback(null, feed);
+	})
+}
+
 function createArticle(articleinfo, callback) {
-	console.log(articleinfo)
 	articleinfo.id = crypto.createHash('md5').update(articleinfo.title+articleinfo.source).digest("hex")
-	console.log(articleinfo)
 
 	Article.findOne({ _id: articleinfo.id }, function(err, article) {
-		console.log("err")
 		if(err) emitError(req, err)
 		else if(!article) {
 			// create the model instance
@@ -305,28 +207,6 @@ function createArticle(articleinfo, callback) {
 			})
 		}
 		callback(null,article)
-	})
-}
-
-function createFeed(feedinfo, callback) {
-	feedinfo.id = crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex")
-	Feed.findOne({ _id: feedinfo.id }, function(err, feed) {
-		if(err) emitError(req, err)
-		else if(!feed) {
-			feed = new Feed({
-				_id: crypto.createHash('md5').update(feedinfo.name+feedinfo.link).digest("hex"),
-				name: feedinfo.name,
-				link: feedinfo.link,
-				articles: article_ids
-			})
-			feed.save(function(err,feed) {
-				if(err) {
-					emitError(req, err)
-					return
-				}
-			})
-		}
-		callback(null, feed);
 	})
 }
 
@@ -377,6 +257,7 @@ function getOrCreateFeedList (feed_listinfo, callback) {
 			feed_ids = getIds(feed_listinfo.feeds)
 			feed_list.feeds = _.union(feed_list.feeds, feed_ids)
 
+			console.log("printing ids:")
 			console.log(feed_ids)
 			callback(null, feed_list);
 	
@@ -390,37 +271,46 @@ feeds: [{'_id':192847,'name':'Tech Posts','link':'http://www.google.ca',
 'articles':[{'title':'iPhone 9 confirmed by hipster journalist','author':'Davy Jones','description':'Today a hip New Yorker unveiled that the new iPhone 9 is in the works...','_id':299182,'link':'','submitted':123123123,'source':'http://www.google.ca'},{'title':'Steve Jobs Revived from the dead','author':'Bob Barker','description':'Steve Jobs was figuratively raised from his grave when another biography was released last weekend...','_id':837745,'link':'','submitted':883837726,'source':'http://www.google.ca'}]},{'_id':926582,'name':'Sci Posts','link':'http://www.google.ca','articles':[{'title':'New particle breaks every known law in Physics','author':'Mary-Kate Olsen','description':'A very desperate journalist misreads a physics paper once again this week, as...','_id':871123,'link':'','submitted':000000000,'source':'http://www.google.ca'},{'title':'\"Wrecking Ball\" Single Inspires Academic Community','author':'Whoopsie Goldberg','description':'The number of academic papers are soaring this week as Miley\'s newest single hits the shelves...','_id':837745,'link':'','submitted':862846823,'source':"http://www.google.ca"}]}]}
 
 
-app.io.route('feed_list_add', function(req) {
-	console.log(req.data)
-	feed_listinfo = req.data
-	feed_listinfo.id = crypto.createHash('md5').update(feed_listinfo.name+feed_listinfo.user).digest("hex")
+app.io.route('feed_list_create', function(req) {
+	feed_list_data = req.data.feed_list
+	feed_list_data._id = crypto.createHash('md5').update(feed_list_data.name+feed_list_data.user).digest("hex")
+	feed_data 	   = req.data.feed
+	feed_data._id   = crypto.createHash('md5').update(feed_data.name+feed_data.link).digest("hex")
 
-	async.waterfall([
-		function articles (callback) {
-			async.map(feed_listinfo.feeds, createArticles, callback);
-		},
-		function feeds (articles, callback) {
-			async.map(articles, function (article, articleDone) {
-				articleDone(null, article._id);
-			}, callback);
-		},
-		function feedList (feeds, callback) {
-			getOrCreateFeedList(feed_listinfo, function (err, feed_list) {
-				if (err) {
+
+	Feed.findOne({ _id: feed_list_data._id }, function(err, feed) {
+		if(err) return
+		if(!feed) {
+			feed = new Feed({
+				_id: feed_data._id,
+				name: feed_data.name,
+				link: feed_data.link,
+				articles: feed_data.article_ids
+			})
+			feed.save(function(err,feed) {
+				if(err) {
 					emitError(req, err)
 					return
 				}
-				console.log(feed_list);
 			})
-
 		}
-
-	], function (err, result) {
-		req.io.emit('feed_added', result)
 	})
-	
-})
 
+	feed_list = new FeedList({
+		_id: feed_list_data._id,
+		name: feed_list_data.name,
+		user: feed_list_data.user,
+		feeds: [feed_data._id]
+	})
+	feed_list.save(function(err,feed_list) {
+		if(err) {
+			emitError(req, err)
+			return
+		}
+	})
+
+	req.io.emit('feed_lists_by_user', feed_list_data)
+})
 
 /*-- GETTERS --*/
 // takes the user_id as input
