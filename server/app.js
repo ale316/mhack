@@ -1,8 +1,8 @@
 var express = require('express.io');
 var mongoose = require('mongoose'),
-	models = require('./models/schema.js'),
-	models = require('./models/users.js'),
-	models = require('./models/articles.js');
+	models = require('./models/schema'),
+	User = require('./models/users'),
+	Article = require('./models/articles');
 var crypto = require('crypto');
 var async = require('async');
 var _ = require('underscore');
@@ -26,42 +26,17 @@ function emitError(req, err) {
 	req.io.emit('error', {
 		description: err.name+': '+err.message
 	});
+	console.log(err.name+': '+err.message);
 }
 
 app.io.route('user_log', function(req) {
-	// we could abstract this, but is it worth the time? 
-	// ^^nope
-	console.log(req) // logging the incoming data
-	userinfo = req.data
-	User.findOne({ fbId: data.id }, function(err, user) {
-		if(err) emitError(req, err);
-		else if(!user) {
-			// create the model instance
-			user = new User({
-				_id: userinfo.id,
-				fbId: userinfo.id,
-				// email: userinfo.email,
-				name: userinfo.name,
-				pic: userinfo.picture
-			})
-
-			addFriends(user,userinfo.friends);
-
-			// try inserting it in the database
-			user.save(function(err,user) {
-				if(err) {
-					emitError(req, err)
-					return
-				}
-			})
-		}
-		else if (user){
-
-			addFriends(user,userinfo.friends);
-		}
-		req.io.emit('user_logged', user)
-	})	
-})
+	var userinfo = req.data;
+	User.loginOrCreate(userinfo, function(user) {
+		req.io.emit('user_logged', user);
+	}, function(err) {
+		emitError(req, err);
+	});
+});
 
 function addFriends(user, friends){
 	User.find({'fbId' : { $in: friends}}).all(function(u){
@@ -71,33 +46,15 @@ function addFriends(user, friends){
 }
 
 app.io.route('article_add', function(req) {
-	// we could abstract this, but is it worth the time?
-	console.log(req.data) // logging the incoming data
-	articleinfo = req.data
-	articleinfo.id = crypto.createHash('md5').update(articleinfo.title+articleinfo.source).digest("hex")
-	Article.findOne({ _id: articleinfo.id }, function(err, article) {
-		if(err) emitError(req, err)
-		else if(!article) {
-			// create the model instance
-			article = new Article({
-				_id: articleinfo.id,
-				title: articleinfo.title,
-				author: articleinfo.author,
-				description: articleinfo.description,
-				link: articleinfo.link,
-				submitted: articleinfo.submitted
-			})
-			// try inserting it in the database
-			article.save(function(err,article) {
-				if(err) {
-					emitError(req, err)
-					return
-				}
-			})
-		}
-		req.io.emit('article_added', article)
-	})	
-})
+	console.log(req.data);
+	var articleinfo = req.data;
+	Article.insertOrUpdate(articleinfo, function(article) {
+		console.log(article);
+		req.io.emit('article_added', article);
+	}, function(err) {
+		emitError(req, err);
+	});
+});
 
 app.io.route('comment_add', function(req) {
 	// we could abstract this, but is it worth the time?
